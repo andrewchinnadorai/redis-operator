@@ -65,7 +65,18 @@ func (d *DeploymentService) GetDeploymentPods(namespace, name string) (*corev1.P
 		labels = append(labels, fmt.Sprintf("%s=%s", k, v))
 	}
 	selector := strings.Join(labels, ",")
-	return d.kubeClient.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: selector})
+
+	deploymentPods, err := d.kubeClient.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: selector})
+
+	// Build new PodList excluding pods in a Terminated or Failed state
+	var nonTerminatedOrFailedPods []corev1.Pod
+	for _, v := range deploymentPods.Items {
+		if v.Status.Reason != "Terminated" && v.Status.Phase != "Failed" {
+			nonTerminatedOrFailedPods = append(nonTerminatedOrFailedPods, v)
+		}
+	}
+	deploymentPods.Items = nonTerminatedOrFailedPods
+	return deploymentPods, err
 }
 
 // CreateDeployment will create the given deployment
